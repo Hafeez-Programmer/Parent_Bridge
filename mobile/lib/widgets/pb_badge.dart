@@ -13,7 +13,7 @@ class PbBadge extends StatelessWidget {
     this.tone = PbBadgeTone.primary,
   });
 
-  factory PbBadge.attendance(AttendanceStatus status) {
+  factory PbBadge.attendance(AttendanceStatus? status) {
     switch (status) {
       case AttendanceStatus.present:
         return const PbBadge(label: 'Present', tone: PbBadgeTone.success);
@@ -21,6 +21,10 @@ class PbBadge extends StatelessWidget {
         return const PbBadge(label: 'Absent', tone: PbBadgeTone.error);
       case AttendanceStatus.late:
         return const PbBadge(label: 'Late', tone: PbBadgeTone.warning);
+      case AttendanceStatus.leave:
+        return const PbBadge(label: 'Leave', tone: PbBadgeTone.primary);
+      case null:
+        return const PbBadge(label: 'Not marked', tone: PbBadgeTone.primary);
     }
   }
 

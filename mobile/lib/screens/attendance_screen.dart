@@ -10,91 +10,112 @@ class AttendanceScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final child = AppStateScope.of(context).activeChild;
+    final state = AppStateScope.of(context);
+    final child = state.activeChild;
 
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      children: [
-        // Monthly Attendance Hero Card
-        PbCard(
-          backgroundColor: AppColors.lightPrimaryContainer,
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
+    if (child == null) {
+      return Center(
+        child: Text(
+          'Link a child to view attendance.',
+          style: AppTypography.bodyMd(color: AppColors.lightOnSurfaceVariant),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: state.refreshDashboard,
+      child: ListView(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        children: [
+          // Monthly Attendance Hero Card
+          PbCard(
+            backgroundColor: AppColors.lightPrimaryContainer,
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: Column(
+              children: [
+                Text(
+                  '${child.attendancePercent}%',
+                  style: AppTypography.displayMdMobile(color: AppColors.lightOnPrimaryContainer),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Attendance · ${child.name}',
+                  style: AppTypography.bodyMd(color: AppColors.lightOnPrimaryContainer),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          // 3-Column Breakdown
+          Row(
             children: [
-              Text(
-                '${child.attendancePercent}%',
-                style: AppTypography.displayMdMobile(color: AppColors.lightOnPrimaryContainer),
+              Expanded(
+                child: _BreakdownTile(
+                  count: child.presentCount,
+                  label: 'Present',
+                  backgroundColor: AppColors.successContainer,
+                  textColor: AppColors.onSuccessContainer,
+                ),
               ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'October attendance · ${child.name}',
-                style: AppTypography.bodyMd(color: AppColors.lightOnPrimaryContainer),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _BreakdownTile(
+                  count: child.absentCount,
+                  label: 'Absent',
+                  backgroundColor: AppColors.lightErrorContainer,
+                  textColor: AppColors.lightOnErrorContainer,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _BreakdownTile(
+                  count: child.lateCount,
+                  label: 'Late',
+                  backgroundColor: AppColors.warningContainer,
+                  textColor: AppColors.onWarningContainer,
+                ),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.md),
 
-        // 3-Column Breakdown
-        Row(
-          children: [
-            Expanded(
-              child: _BreakdownTile(
-                count: child.presentCount,
-                label: 'Present',
-                backgroundColor: AppColors.successContainer,
-                textColor: AppColors.onSuccessContainer,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _BreakdownTile(
-                count: child.absentCount,
-                label: 'Absent',
-                backgroundColor: AppColors.lightErrorContainer,
-                textColor: AppColors.lightOnErrorContainer,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _BreakdownTile(
-                count: child.lateCount,
-                label: 'Late',
-                backgroundColor: AppColors.warningContainer,
-                textColor: AppColors.onWarningContainer,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Recent Days
-        Text(
-          'Recent days',
-          style: AppTypography.titleLg(color: AppColors.lightOnSurface),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        ...child.recentDays.map(
-          (day) => Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: PbCard(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    day.dateLabel,
-                    style: AppTypography.titleMd(
-                      color: AppColors.lightOnSurface,
-                      tabular: day.tabular,
-                    ),
-                  ),
-                  PbBadge.attendance(day.status),
-                ],
-              ),
-            ),
+          // Recent Days
+          Text(
+            'Recent days',
+            style: AppTypography.titleLg(color: AppColors.lightOnSurface),
           ),
-        ),
-      ],
+          const SizedBox(height: AppSpacing.sm),
+          if (child.recentDays.isEmpty)
+            PbCard(
+              child: Text(
+                'No attendance records yet.',
+                style: AppTypography.bodyMd(color: AppColors.lightOnSurfaceVariant),
+              ),
+            )
+          else
+            ...child.recentDays.map(
+              (day) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                child: PbCard(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        day.dateLabel,
+                        style: AppTypography.titleMd(
+                          color: AppColors.lightOnSurface,
+                          tabular: day.tabular,
+                        ),
+                      ),
+                      PbBadge.attendance(day.status),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/parent_bridge_models.dart';
 import '../navigation/app_router.dart';
 import '../state/app_state_scope.dart';
 import '../theme/app_colors.dart';
@@ -13,6 +12,9 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = AppStateScope.of(context);
+    final profile = state.profile;
+    final parentName = profile?.fullName ?? 'Parent';
+    final parentEmail = profile?.email ?? '';
 
     return Scaffold(
       appBar: const PbAppBar(title: 'Settings', showBackButton: true),
@@ -34,7 +36,7 @@ class SettingsScreen extends StatelessWidget {
                     ),
                     alignment: Alignment.center,
                     child: Text(
-                      'F',
+                      profile?.initial ?? 'P',
                       style: AppTypography.headlineMd(color: AppColors.lightOnPrimaryContainer),
                     ),
                   ),
@@ -44,13 +46,14 @@ class SettingsScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          MockParentData.parentName,
+                          parentName,
                           style: AppTypography.titleMd(color: AppColors.lightOnSurface),
                         ),
-                        Text(
-                          MockParentData.parentEmail,
-                          style: AppTypography.bodyMd(color: AppColors.lightOnSurfaceVariant),
-                        ),
+                        if (parentEmail.isNotEmpty)
+                          Text(
+                            parentEmail,
+                            style: AppTypography.bodyMd(color: AppColors.lightOnSurfaceVariant),
+                          ),
                       ],
                     ),
                   ),
@@ -82,9 +85,12 @@ class SettingsScreen extends StatelessWidget {
             // Account Links
             _SettingsActionRow(
               label: 'Change password',
-              onTap: () {
+              onTap: () async {
+                if (parentEmail.isEmpty) return;
+                await state.sendPasswordReset(parentEmail);
+                if (!context.mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Password change email sent.')),
+                  SnackBar(content: Text('Password reset email sent to $parentEmail.')),
                 );
               },
             ),
@@ -103,7 +109,9 @@ class SettingsScreen extends StatelessWidget {
             PbButton(
               label: 'Logout',
               variant: PbButtonVariant.destructive,
-              onPressed: () {
+              onPressed: () async {
+                await state.signOut();
+                if (!context.mounted) return;
                 Navigator.of(context).pushNamedAndRemoveUntil(
                   AppRoutes.login,
                   (route) => false,

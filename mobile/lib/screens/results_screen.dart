@@ -19,7 +19,35 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final child = AppStateScope.of(context).activeChild;
+    final state = AppStateScope.of(context);
+    final child = state.activeChild;
+
+    if (child == null) {
+      return Center(
+        child: Text(
+          'Link a child to view results.',
+          style: AppTypography.bodyMd(color: AppColors.lightOnSurfaceVariant),
+        ),
+      );
+    }
+
+    if (child.exams.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: state.refreshDashboard,
+        child: ListView(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          children: [
+            PbCard(
+              child: Text(
+                'No published exam results yet for ${child.name}.',
+                style: AppTypography.bodyMd(color: AppColors.lightOnSurfaceVariant),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final exam = child.exams.firstWhere(
       (e) => e.term == _selectedTerm,
       orElse: () => child.exams.first,
@@ -29,100 +57,103 @@ class _ResultsScreenState extends State<ResultsScreen> {
         ? exam.subjects
         : exam.subjects.where((s) => s.subject == _selectedSubject).toList();
 
-    return ListView(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      children: [
-        // Filter Row
-        Row(
-          children: [
-            Expanded(
-              child: _FilterDropdown(
-                value: _selectedTerm,
-                items: child.exams.map((e) => e.term).toList(),
-                onChanged: (val) {
-                  if (val != null) setState(() => _selectedTerm = val);
-                },
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: _FilterDropdown(
-                value: _selectedSubject,
-                items: ['All subjects', ...exam.subjects.map((s) => s.subject)],
-                onChanged: (val) {
-                  if (val != null) setState(() => _selectedSubject = val);
-                },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppSpacing.md),
-
-        // Subject List
-        ...subjects.map(
-          (subj) => Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-            child: PbCard(
-              onTap: () => Navigator.of(context).pushNamed(
-                AppRoutes.resultDetail,
-                arguments: exam,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    subj.subject,
-                    style: AppTypography.titleMd(color: AppColors.lightOnSurface),
-                  ),
-                  Text(
-                    '${subj.obtained}/${subj.total}',
-                    style: AppTypography.labelLg(
-                      color: AppColors.lightOnSurface,
-                      tabular: true,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.sm),
-
-        // Total Summary Card
-        PbCard(
-          backgroundColor: AppColors.lightPrimaryContainer,
-          onTap: () => Navigator.of(context).pushNamed(
-            AppRoutes.resultDetail,
-            arguments: exam,
-          ),
-          child: Row(
+    return RefreshIndicator(
+      onRefresh: state.refreshDashboard,
+      child: ListView(
+        padding: const EdgeInsets.all(AppSpacing.md),
+        children: [
+          // Filter Row
+          Row(
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: _FilterDropdown(
+                  value: exam.term,
+                  items: child.exams.map((e) => e.term).toSet().toList(),
+                  onChanged: (val) {
+                    if (val != null) setState(() => _selectedTerm = val);
+                  },
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _FilterDropdown(
+                  value: _selectedSubject,
+                  items: ['All subjects', ...exam.subjects.map((s) => s.subject)],
+                  onChanged: (val) {
+                    if (val != null) setState(() => _selectedSubject = val);
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          // Subject List
+          ...subjects.map(
+            (subj) => Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: PbCard(
+                onTap: () => Navigator.of(context).pushNamed(
+                  AppRoutes.resultDetail,
+                  arguments: exam,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Total ${exam.totalObtained}/${exam.totalMax} · Grade ${exam.grade}',
-                      style: AppTypography.titleMd(
-                        color: AppColors.lightOnPrimaryContainer,
-                        tabular: true,
-                      ),
+                      subj.subject,
+                      style: AppTypography.titleMd(color: AppColors.lightOnSurface),
                     ),
-                    const SizedBox(height: AppSpacing.xs),
                     Text(
-                      'Tap for breakdown & report',
-                      style: AppTypography.labelSm(
-                        color: AppColors.lightOnPrimaryContainer.withValues(alpha: 0.8),
+                      '${subj.obtained}/${subj.total}',
+                      style: AppTypography.labelLg(
+                        color: AppColors.lightOnSurface,
+                        tabular: true,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: AppColors.lightOnPrimaryContainer),
-            ],
+            ),
           ),
-        ),
-      ],
+          const SizedBox(height: AppSpacing.sm),
+
+          // Total Summary Card
+          PbCard(
+            backgroundColor: AppColors.lightPrimaryContainer,
+            onTap: () => Navigator.of(context).pushNamed(
+              AppRoutes.resultDetail,
+              arguments: exam,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Total ${exam.totalObtained}/${exam.totalMax} · Grade ${exam.grade}',
+                        style: AppTypography.titleMd(
+                          color: AppColors.lightOnPrimaryContainer,
+                          tabular: true,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Tap for breakdown & report',
+                        style: AppTypography.labelSm(
+                          color: AppColors.lightOnPrimaryContainer.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: AppColors.lightOnPrimaryContainer),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

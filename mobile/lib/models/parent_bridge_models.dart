@@ -1,4 +1,22 @@
-enum AttendanceStatus { present, absent, late }
+enum AttendanceStatus { present, absent, late, leave }
+
+class ParentProfile {
+  const ParentProfile({
+    required this.id,
+    required this.fullName,
+    required this.email,
+    required this.role,
+    required this.isActive,
+  });
+
+  final String id;
+  final String fullName;
+  final String email;
+  final String role;
+  final bool isActive;
+
+  String get initial => fullName.isNotEmpty ? fullName[0].toUpperCase() : 'P';
+}
 
 class AttendanceDayRecord {
   const AttendanceDayRecord({
@@ -30,6 +48,7 @@ class SubjectScore {
 
 class ExamResult {
   const ExamResult({
+    required this.id,
     required this.term,
     required this.title,
     required this.grade,
@@ -37,6 +56,7 @@ class ExamResult {
     required this.subjects,
   });
 
+  final String id;
   final String term;
   final String title;
   final String grade;
@@ -84,6 +104,7 @@ class ChildProfile {
   const ChildProfile({
     required this.id,
     required this.name,
+    required this.classId,
     required this.className,
     required this.rollNumber,
     required this.attendancePercent,
@@ -98,11 +119,12 @@ class ChildProfile {
 
   final String id;
   final String name;
+  final String classId;
   final String className;
   final String rollNumber;
   final int attendancePercent;
   final int lastResultPercent;
-  final AttendanceStatus todayStatus;
+  final AttendanceStatus? todayStatus;
   final int presentCount;
   final int absentCount;
   final int lateCount;
@@ -110,160 +132,4 @@ class ChildProfile {
   final List<ExamResult> exams;
 
   String get initial => name.isNotEmpty ? name[0].toUpperCase() : '?';
-}
-
-abstract final class MockParentData {
-  static const String parentName = 'Fatima Khan';
-  static const String parentEmail = 'fatima.khan@email.com';
-
-  static final List<ChildProfile> initialChildren = [
-    ChildProfile(
-      id: 'c1',
-      name: 'Ali Khan',
-      className: 'Class 8-A',
-      rollNumber: '12',
-      attendancePercent: 92,
-      lastResultPercent: 78,
-      todayStatus: AttendanceStatus.present,
-      presentCount: 21,
-      absentCount: 2,
-      lateCount: 1,
-      recentDays: const [
-        AttendanceDayRecord(dateLabel: 'Today', status: AttendanceStatus.present),
-        AttendanceDayRecord(dateLabel: 'Yesterday', status: AttendanceStatus.present),
-        AttendanceDayRecord(
-          dateLabel: 'Mon, 12 Oct',
-          status: AttendanceStatus.absent,
-          tabular: true,
-        ),
-        AttendanceDayRecord(
-          dateLabel: 'Thu, 8 Oct',
-          status: AttendanceStatus.late,
-          tabular: true,
-        ),
-      ],
-      exams: const [
-        ExamResult(
-          term: 'Mid-Term',
-          title: 'Mid-Term Result',
-          grade: 'B+',
-          percentage: 78.6,
-          subjects: [
-            SubjectScore(subject: 'Mathematics', shortName: 'Math', obtained: 82, total: 100),
-            SubjectScore(subject: 'English', shortName: 'Eng', obtained: 74, total: 100),
-            SubjectScore(subject: 'Science', shortName: 'Sci', obtained: 79, total: 100),
-            SubjectScore(subject: 'Urdu', shortName: 'Urdu', obtained: 70, total: 100),
-            SubjectScore(subject: 'Islamiyat', shortName: 'Isl', obtained: 88, total: 100),
-          ],
-        ),
-        ExamResult(
-          term: 'First Term',
-          title: 'First Term Result',
-          grade: 'A',
-          percentage: 84.0,
-          subjects: [
-            SubjectScore(subject: 'Mathematics', shortName: 'Math', obtained: 88, total: 100),
-            SubjectScore(subject: 'English', shortName: 'Eng', obtained: 80, total: 100),
-            SubjectScore(subject: 'Science', shortName: 'Sci', obtained: 84, total: 100),
-            SubjectScore(subject: 'Urdu', shortName: 'Urdu', obtained: 78, total: 100),
-            SubjectScore(subject: 'Islamiyat', shortName: 'Isl', obtained: 90, total: 100),
-          ],
-        ),
-      ],
-    ),
-    ChildProfile(
-      id: 'c2',
-      name: 'Sara Khan',
-      className: 'Class 5-B',
-      rollNumber: '07',
-      attendancePercent: 96,
-      lastResultPercent: 89,
-      todayStatus: AttendanceStatus.present,
-      presentCount: 23,
-      absentCount: 0,
-      lateCount: 1,
-      recentDays: const [
-        AttendanceDayRecord(dateLabel: 'Today', status: AttendanceStatus.present),
-        AttendanceDayRecord(dateLabel: 'Yesterday', status: AttendanceStatus.present),
-        AttendanceDayRecord(
-          dateLabel: 'Mon, 12 Oct',
-          status: AttendanceStatus.present,
-          tabular: true,
-        ),
-        AttendanceDayRecord(
-          dateLabel: 'Thu, 8 Oct',
-          status: AttendanceStatus.late,
-          tabular: true,
-        ),
-      ],
-      exams: const [
-        ExamResult(
-          term: 'Mid-Term',
-          title: 'Mid-Term Result',
-          grade: 'A',
-          percentage: 89.0,
-          subjects: [
-            SubjectScore(subject: 'Mathematics', shortName: 'Math', obtained: 92, total: 100),
-            SubjectScore(subject: 'English', shortName: 'Eng', obtained: 86, total: 100),
-            SubjectScore(subject: 'Science', shortName: 'Sci', obtained: 90, total: 100),
-            SubjectScore(subject: 'Urdu', shortName: 'Urdu', obtained: 85, total: 100),
-            SubjectScore(subject: 'Islamiyat', shortName: 'Isl', obtained: 92, total: 100),
-          ],
-        ),
-      ],
-    ),
-  ];
-
-  static final List<Announcement> initialAnnouncements = [
-    const Announcement(
-      id: 'a1',
-      title: 'Sports Day - 5 Nov',
-      audience: 'All classes',
-      timeLabel: '2h ago',
-      postedAt: 'Today, 9:15 AM',
-      postedBy: 'Admin',
-      unread: true,
-      paragraphs: [
-        'Annual Sports Day will take place on Wednesday, 5 November on the main school grounds from 8:30 AM to 1:30 PM.',
-        'Students should arrive in their house sports kit and bring a labeled water bottle. Parents are warmly invited to attend the track finals and prize distribution starting at 11:00 AM.',
-      ],
-    ),
-    const Announcement(
-      id: 'a2',
-      title: 'Class 8-A: Math quiz',
-      audience: 'Class 8-A',
-      timeLabel: 'Yesterday',
-      postedAt: 'Yesterday, 2:30 PM',
-      postedBy: 'Ms. Sara (Teacher)',
-      unread: true,
-      paragraphs: [
-        'Class 8-A will have a short Mathematics quiz on Chapter 4 (Linear Equations) this Friday during the second period.',
-        'Please ensure students revise the practice worksheet shared in class.',
-      ],
-    ),
-    const Announcement(
-      id: 'a3',
-      title: 'Winter break notice',
-      audience: 'All classes',
-      timeLabel: '3 days ago',
-      postedAt: '15 Oct, 10:00 AM',
-      postedBy: 'Admin',
-      unread: false,
-      paragraphs: [
-        'The school will observe winter break from 24 December to 4 January. Regular classes will resume on Monday, 5 January.',
-      ],
-    ),
-    const Announcement(
-      id: 'a4',
-      title: 'Uniform policy update',
-      audience: 'All classes',
-      timeLabel: '1 week ago',
-      postedAt: '10 Oct, 8:45 AM',
-      postedBy: 'Admin',
-      unread: false,
-      paragraphs: [
-        'Students are requested to wear the winter navy sweater starting 1 November. House kits remain required on Wednesdays.',
-      ],
-    ),
-  ];
 }

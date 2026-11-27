@@ -25,21 +25,27 @@ class _LinkChildScreenState extends State<LinkChildScreen> {
     super.dispose();
   }
 
-  void _handleLinkChild() {
-    if (_formKey.currentState?.validate() ?? false) {
-      AppStateScope.of(context).linkChild(
-        linkCode: _linkCodeController.text,
-        rollNumber: _rollController.text,
-      );
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        AppRoutes.main,
-        (route) => false,
-      );
-    }
+  Future<void> _handleLinkChild() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final state = AppStateScope.of(context);
+    final ok = await state.linkChild(
+      linkCode: _linkCodeController.text,
+      rollNumber: _rollController.text,
+    );
+
+    if (!mounted || !ok) return;
+
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      AppRoutes.main,
+      (route) => false,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final state = AppStateScope.of(context);
+
     return Scaffold(
       appBar: const PbAppBar(title: 'Link Your Child', showBackButton: true),
       body: SafeArea(
@@ -53,6 +59,18 @@ class _LinkChildScreenState extends State<LinkChildScreen> {
                 style: AppTypography.bodyMd(color: AppColors.lightOnSurfaceVariant),
               ),
               const SizedBox(height: AppSpacing.lg),
+              if (state.errorMessage != null) ...[
+                PbCard(
+                  backgroundColor: AppColors.lightErrorContainer,
+                  borderColor: AppColors.lightError,
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Text(
+                    state.errorMessage!,
+                    style: AppTypography.bodyMd(color: AppColors.lightOnErrorContainer),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+              ],
               PbCard(
                 padding: const EdgeInsets.all(AppSpacing.lg),
                 child: Form(
@@ -74,17 +92,17 @@ class _LinkChildScreenState extends State<LinkChildScreen> {
                       PbInputField(
                         label: "Child's roll number",
                         controller: _rollController,
-                        hintText: 'e.g. 12',
-                        helperText: 'Numeric roll number assigned by the school',
-                        keyboardType: TextInputType.number,
+                        hintText: 'e.g. 01',
+                        helperText: 'Roll number assigned by the school',
+                        keyboardType: TextInputType.text,
                         mono: true,
                         validator: (v) =>
                             (v == null || v.trim().isEmpty) ? 'Enter roll number' : null,
                       ),
                       const SizedBox(height: AppSpacing.md),
                       PbButton(
-                        label: 'Link Child',
-                        onPressed: _handleLinkChild,
+                        label: state.isLoading ? 'Linking...' : 'Link Child',
+                        onPressed: state.isLoading ? null : _handleLinkChild,
                       ),
                     ],
                   ),

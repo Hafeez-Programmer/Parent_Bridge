@@ -13,7 +13,7 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { signIn, sendPasswordReset, profile, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('sara@school.edu');
-  const [password, setPassword] = useState('Teacher123!');
+  const [password, setPassword] = useState('321');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
@@ -70,10 +70,10 @@ export const LoginPage: React.FC = () => {
     setInfoMessage(null);
     if (demoRole === 'admin') {
       setEmail('admin@school.edu');
-      setPassword('Admin123!');
+      setPassword('890');
     } else {
       setEmail('sara@school.edu');
-      setPassword('Teacher123!');
+      setPassword('321');
     }
   };
 

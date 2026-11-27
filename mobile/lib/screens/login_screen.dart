@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../navigation/app_router.dart';
+import '../state/app_state_scope.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_typography.dart';
@@ -14,8 +15,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController(text: 'fatima.khan@email.com');
-  final _passwordController = TextEditingController(text: '••••••••••');
+  final _emailController = TextEditingController(text: 'nadia@mail.com');
+  final _passwordController = TextEditingController();
 
   @override
   void dispose() {
@@ -24,14 +25,51 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
-    if (_formKey.currentState?.validate() ?? false) {
+  Future<void> _handleLogin() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final state = AppStateScope.of(context);
+    final ok = await state.signIn(
+      email: _emailController.text,
+      password: _passwordController.text,
+    );
+
+    if (!mounted || !ok) return;
+
+    if (state.children.isEmpty) {
+      Navigator.of(context).pushReplacementNamed(AppRoutes.linkChild);
+    } else {
       Navigator.of(context).pushReplacementNamed(AppRoutes.main);
+    }
+  }
+
+  Future<void> _handleForgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter your email address first.')),
+      );
+      return;
+    }
+
+    try {
+      await AppStateScope.of(context).sendPasswordReset(email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Password reset link sent to $email.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not send reset email: $e')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final state = AppStateScope.of(context);
+
     return Scaffold(
       appBar: const PbAppBar(title: 'ParentBridge', centerTitle: true),
       body: SafeArea(
@@ -78,6 +116,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: AppTypography.bodyMd(color: AppColors.lightOnSurfaceVariant),
                   ),
                   const SizedBox(height: AppSpacing.lg),
+                  if (state.errorMessage != null) ...[
+                    PbCard(
+                      backgroundColor: AppColors.lightErrorContainer,
+                      borderColor: AppColors.lightError,
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      child: Text(
+                        state.errorMessage!,
+                        style: AppTypography.bodyMd(color: AppColors.lightOnErrorContainer),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                  ],
                   PbCard(
                     padding: const EdgeInsets.all(AppSpacing.lg),
                     child: Form(
@@ -106,8 +156,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: AppSpacing.md),
                           PbButton(
-                            label: 'Login',
-                            onPressed: _handleLogin,
+                            label: state.isLoading ? 'Signing in...' : 'Login',
+                            onPressed: state.isLoading ? null : _handleLogin,
                           ),
                         ],
                       ),
@@ -115,20 +165,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   TextButton(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Password reset link sent to your email.'),
-                        ),
-                      );
-                    },
+                    onPressed: _handleForgotPassword,
                     child: Text(
                       'Forgot password?',
                       style: AppTypography.labelLg(color: AppColors.lightPrimary),
                     ),
                   ),
                   TextButton(
-                    onPressed: () => Navigator.of(context).pushNamed(AppRoutes.linkChild),
+                    onPressed: () {
+                      if (!state.hasSession) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Please login first, then link your child.'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.of(context).pushNamed(AppRoutes.linkChild);
+                    },
                     child: RichText(
                       text: TextSpan(
                         style: AppTypography.bodyMd(color: AppColors.lightOnSurfaceVariant),
