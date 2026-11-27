@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Icon, TextInput } from '../components/ui';
+import { useAuth } from '../context/AuthContext';
 
 const FEATURES = [
   'Instant attendance & absence alerts',
@@ -10,15 +11,69 @@ const FEATURES = [
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const { signIn, sendPasswordReset, profile, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('sara@school.edu');
-  const [password, setPassword] = useState('••••••••');
+  const [password, setPassword] = useState('Teacher123!');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!authLoading && profile) {
+      if (profile.role === 'admin') {
+        navigate('/admin/overview', { replace: true });
+      } else if (profile.role === 'teacher') {
+        navigate('/teacher/dashboard', { replace: true });
+      }
+    }
+  }, [authLoading, profile, navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.toLowerCase().includes('admin')) {
-      navigate('/admin/overview');
+    setError(null);
+    setInfoMessage(null);
+    setSubmitting(true);
+
+    const res = await signIn(email, password);
+    setSubmitting(false);
+
+    if (res.error) {
+      setError(res.error);
+      return;
+    }
+
+    if (res.role === 'admin') {
+      navigate('/admin/overview', { replace: true });
+    } else if (res.role === 'teacher') {
+      navigate('/teacher/dashboard', { replace: true });
+    }
+  };
+
+  const handleForgotPassword = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    setError(null);
+    setInfoMessage(null);
+    if (!email.trim()) {
+      setError('Enter your email address first to receive a password reset link.');
+      return;
+    }
+    const res = await sendPasswordReset(email);
+    if (res.error) {
+      setError(res.error);
     } else {
-      navigate('/teacher/dashboard');
+      setInfoMessage('Password reset email sent. Check your inbox.');
+    }
+  };
+
+  const fillDemo = (demoRole: 'admin' | 'teacher') => {
+    setError(null);
+    setInfoMessage(null);
+    if (demoRole === 'admin') {
+      setEmail('admin@school.edu');
+      setPassword('Admin123!');
+    } else {
+      setEmail('sara@school.edu');
+      setPassword('Teacher123!');
     }
   };
 
@@ -70,6 +125,24 @@ export const LoginPage: React.FC = () => {
             </p>
           </div>
 
+          {error && (
+            <div
+              role="alert"
+              className="rounded border border-light-error bg-error-container px-3.5 py-2.5 font-body text-body-md text-on-error-container"
+            >
+              {error}
+            </div>
+          )}
+
+          {infoMessage && (
+            <div
+              role="status"
+              className="rounded border border-success bg-success-container px-3.5 py-2.5 font-body text-body-md text-on-success-container"
+            >
+              {infoMessage}
+            </div>
+          )}
+
           <form className="flex flex-col gap-gutter-md" onSubmit={handleSubmit}>
             <TextInput
               label="Email address"
@@ -91,16 +164,12 @@ export const LoginPage: React.FC = () => {
             />
 
             <div className="flex items-center justify-between text-label-md">
-              <button
-                type="button"
-                onClick={() => setEmail('admin@school.edu')}
-                className="font-body text-label-sm text-light-on-surface-variant hover:text-light-primary"
-              >
-                Demo: Use Admin email
-              </button>
+              <span className="font-body text-label-sm text-light-on-surface-variant">
+                Role-based Supabase Auth
+              </span>
               <a
                 href="#forgot-password"
-                onClick={(e) => e.preventDefault()}
+                onClick={handleForgotPassword}
                 className="font-body text-label-md text-light-primary hover:underline"
               >
                 Forgot password?
@@ -113,25 +182,28 @@ export const LoginPage: React.FC = () => {
               icon="arrow_forward"
               iconPosition="right"
               className="w-full py-3"
+              disabled={submitting}
             >
-              Sign in to dashboard
+              {submitting ? 'Signing in...' : 'Sign in to dashboard'}
             </Button>
           </form>
 
           <div className="pt-gutter-sm border-t border-light-outline-variant flex items-center justify-between gap-gutter-sm">
             <Button
+              type="button"
               variant="outline"
               className="flex-1 text-label-md py-2"
-              onClick={() => navigate('/admin/overview')}
+              onClick={() => fillDemo('admin')}
             >
-              Admin Portal
+              Fill Admin Demo
             </Button>
             <Button
+              type="button"
               variant="outline"
               className="flex-1 text-label-md py-2"
-              onClick={() => navigate('/teacher/dashboard')}
+              onClick={() => fillDemo('teacher')}
             >
-              Teacher Portal
+              Fill Teacher Demo
             </Button>
           </div>
         </div>

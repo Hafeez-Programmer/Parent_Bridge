@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Badge,
@@ -13,34 +13,111 @@ import {
   TableRow,
   TextInput,
 } from '../../components/ui';
-import { INITIAL_EXAMS, type ExamRecord } from '../../data/mockData';
+import { useAuth } from '../../context/AuthContext';
+import { supabase, type ClassRow } from '../../lib/supabase';
+
+interface ExamView {
+  id: string;
+  name: string;
+  term: string;
+  classId: string;
+  className: string;
+  isPublished: boolean;
+}
 
 export const TeacherExamsResultsPage: React.FC = () => {
-  const [exams, setExams] = useState<ExamRecord[]>(INITIAL_EXAMS);
+  const { user } = useAuth();
+  const [classes, setClasses] = useState<ClassRow[]>([]);
+  const [exams, setExams] = useState<ExamView[]>([]);
   const [examName, setExamName] = useState('');
   const [term, setTerm] = useState('Term 2');
-  const [className, setClassName] = useState('Class 8-A');
+  const [classId, setClassId] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCreateExam = (e: React.FormEvent) => {
+  const loadData = useCallback(async () => {
+    if (!user) return;
+    setError(null);
+    const { data: clsData } = await supabase
+      .from('classes')
+      .select('*')
+      .eq('teacher_id', user.id)
+      .order('name')
+      .order('section');
+
+    const clsList = (clsData ?? []) as ClassRow[];
+    setClasses(clsList);
+    if (clsList.length > 0 && !classId) {
+      setClassId(clsList[0].id);
+    }
+
+    const clsIds = clsList.map((c) => c.id);
+    if (clsIds.length === 0) {
+      setExams([]);
+      setLoading(false);
+      return;
+    }
+
+    const clsMap = new Map(clsList.map((c) => [c.id, `${c.name}-${c.section}`]));
+    const { data: examData, error: examErr } = await supabase
+      .from('exams')
+      .select('*')
+      .in('class_id', clsIds)
+      .order('created_at', { ascending: false });
+
+    if (examErr) setError(examErr.message);
+
+    setExams(
+      (examData ?? []).map((ex) => ({
+        id: ex.id,
+        name: ex.name,
+        term: ex.term,
+        classId: ex.class_id,
+        className: clsMap.get(ex.class_id) ?? '—',
+        isPublished: ex.is_published,
+      })),
+    );
+    setLoading(false);
+  }, [user, classId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleCreateExam = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!examName.trim()) return;
-    setExams((prev) => [
-      ...prev,
-      {
-        id: `ex${Date.now()}`,
-        name: examName.trim(),
-        term,
-        className: className.replace('Class ', ''),
-        status: 'Draft',
-      },
-    ]);
+    if (!examName.trim() || !classId) return;
+    setError(null);
+
+    const { error: insErr } = await supabase.from('exams').insert({
+      name: examName.trim(),
+      term,
+      class_id: classId,
+      is_published: false,
+    });
+
+    if (insErr) {
+      setError(insErr.message);
+      return;
+    }
+
     setExamName('');
+    loadData();
   };
 
-  const publishExam = (id: string) => {
-    setExams((prev) =>
-      prev.map((ex) => (ex.id === id ? { ...ex, status: 'Published' } : ex)),
-    );
+  const publishExam = async (id: string) => {
+    setError(null);
+    const { error: updErr } = await supabase
+      .from('exams')
+      .update({ is_published: true })
+      .eq('id', id);
+
+    if (updErr) {
+      setError(updErr.message);
+      return;
+    }
+
+    setExams((prev) => prev.map((ex) => (ex.id === id ? { ...ex, isPublished: true } : ex)));
   };
 
   return (
@@ -59,6 +136,12 @@ export const TeacherExamsResultsPage: React.FC = () => {
         }
       />
 
+      {error && (
+        <div className="rounded border border-light-error bg-error-container px-4 py-3 font-body text-body-md text-on-error-container">
+          {error}
+        </div>
+      )}
+
       <DataTable>
         <TableHead>
           <TableHeaderCell>Exam</TableHeaderCell>
@@ -68,44 +151,58 @@ export const TeacherExamsResultsPage: React.FC = () => {
           <TableHeaderCell>Actions</TableHeaderCell>
         </TableHead>
         <TableBody>
-          {exams.map((exam) => (
-            <TableRow key={exam.id}>
-              <td className="px-4 py-3 font-body text-body-md">{exam.name}</td>
-              <td className="px-4 py-3 font-body text-body-md">{exam.term}</td>
-              <td className="px-4 py-3 font-body text-body-md">{exam.className}</td>
-              <td className="px-4 py-3">
-                <Badge variant={exam.status === 'Published' ? 'success' : 'warning'}>
-                  {exam.status}
-                </Badge>
-              </td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-gutter-md">
-                  <Link
-                    to="/teacher/enter-results"
-                    className="font-body text-label-lg text-light-primary hover:underline"
-                  >
-                    {exam.status === 'Published' ? 'View' : 'Enter results'}
-                  </Link>
-                  {exam.status === 'Published' ? (
-                    <Link
-                      to="/teacher/enter-results"
-                      className="font-body text-label-lg text-light-secondary hover:underline"
-                    >
-                      Edit
-                    </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => publishExam(exam.id)}
-                      className="font-body text-label-lg text-light-secondary hover:underline"
-                    >
-                      Publish
-                    </button>
-                  )}
-                </div>
+          {loading ? (
+            <TableRow>
+              <td colSpan={5} className="px-4 py-6 text-center font-body text-body-md text-light-on-surface-variant">
+                Loading exams...
               </td>
             </TableRow>
-          ))}
+          ) : exams.length === 0 ? (
+            <TableRow>
+              <td colSpan={5} className="px-4 py-6 text-center font-body text-body-md text-light-on-surface-variant">
+                No exams created yet.
+              </td>
+            </TableRow>
+          ) : (
+            exams.map((exam) => (
+              <TableRow key={exam.id}>
+                <td className="px-4 py-3 font-body text-body-md">{exam.name}</td>
+                <td className="px-4 py-3 font-body text-body-md">{exam.term}</td>
+                <td className="px-4 py-3 font-body text-body-md">{exam.className}</td>
+                <td className="px-4 py-3">
+                  <Badge variant={exam.isPublished ? 'success' : 'warning'}>
+                    {exam.isPublished ? 'Published' : 'Draft'}
+                  </Badge>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-gutter-md">
+                    <Link
+                      to={`/teacher/enter-results?examId=${exam.id}`}
+                      className="font-body text-label-lg text-light-primary hover:underline"
+                    >
+                      {exam.isPublished ? 'View' : 'Enter results'}
+                    </Link>
+                    {exam.isPublished ? (
+                      <Link
+                        to={`/teacher/enter-results?examId=${exam.id}`}
+                        className="font-body text-label-lg text-light-secondary hover:underline"
+                      >
+                        Edit
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => publishExam(exam.id)}
+                        className="font-body text-label-lg text-light-secondary hover:underline"
+                      >
+                        Publish
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </TableRow>
+            ))
+          )}
         </TableBody>
       </DataTable>
 
@@ -134,13 +231,15 @@ export const TeacherExamsResultsPage: React.FC = () => {
           <div className="flex items-end gap-gutter-sm">
             <SelectInput
               label="Class"
-              value={className}
-              onChange={(e) => setClassName(e.target.value)}
+              value={classId}
+              onChange={(e) => setClassId(e.target.value)}
               className="flex-1"
             >
-              <option>Class 8-A</option>
-              <option>Class 9-A</option>
-              <option>Class 9-B</option>
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  Class {c.name}-{c.section}
+                </option>
+              ))}
             </SelectInput>
             <Button type="submit" variant="primary" className="px-6">
               Create

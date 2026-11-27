@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Button,
   PageHeader,
@@ -6,29 +6,112 @@ import {
   TextAreaInput,
   TextInput,
 } from '../../components/ui';
-import { INITIAL_TEACHER_ANNOUNCEMENTS, type AnnouncementItem } from '../../data/mockData';
+import { useAuth } from '../../context/AuthContext';
+import { supabase, type ClassRow } from '../../lib/supabase';
+
+interface TeacherAnnouncementView {
+  id: string;
+  title: string;
+  body: string;
+  classId: string | null;
+  audience: string;
+  date: string;
+  schoolWide: boolean;
+  isOwn: boolean;
+}
 
 export const TeacherAnnouncementsPage: React.FC = () => {
-  const [items, setItems] = useState<AnnouncementItem[]>(INITIAL_TEACHER_ANNOUNCEMENTS);
-  const [title, setTitle] = useState('Class 8-A: Math quiz');
+  const { user } = useAuth();
+  const [classes, setClasses] = useState<ClassRow[]>([]);
+  const [items, setItems] = useState<TeacherAnnouncementView[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
-  const [audience, setAudience] = useState('Class 8-A');
+  const [audienceClassId, setAudienceClassId] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handlePublish = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-    setItems((prev) => [
-      {
-        id: `ta${Date.now()}`,
-        title: title.trim(),
-        message: message.trim(),
-        audience,
-        date: 'Today',
-      },
-      ...prev,
+  const loadData = useCallback(async () => {
+    if (!user) return;
+    setError(null);
+    const [clsRes, annRes] = await Promise.all([
+      supabase
+        .from('classes')
+        .select('*')
+        .eq('teacher_id', user.id)
+        .order('name')
+        .order('section'),
+      supabase.from('announcements').select('*').order('created_at', { ascending: false }),
     ]);
+
+    if (annRes.error) setError(annRes.error.message);
+
+    const clsList = (clsRes.data ?? []) as ClassRow[];
+    setClasses(clsList);
+    if (clsList.length > 0 && !audienceClassId) {
+      setAudienceClassId(clsList[0].id);
+    }
+    const clsMap = new Map(clsList.map((c) => [c.id, `Class ${c.name}-${c.section}`]));
+
+    setItems(
+      (annRes.data ?? []).map((a) => ({
+        id: a.id,
+        title: a.title,
+        body: a.body,
+        classId: a.class_id,
+        audience: a.class_id ? clsMap.get(a.class_id) ?? 'Assigned class' : 'All parents',
+        date: new Date(a.created_at).toLocaleDateString(undefined, {
+          day: 'numeric',
+          month: 'short',
+        }),
+        schoolWide: a.class_id === null,
+        isOwn: a.created_by === user.id,
+      })),
+    );
+    setLoading(false);
+  }, [user, audienceClassId]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handlePublish = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !audienceClassId || !user) return;
+    setError(null);
+    setSaving(true);
+
+    const payload = {
+      title: title.trim(),
+      body: message.trim() || title.trim(),
+      class_id: audienceClassId,
+    };
+
+    const res = editingId
+      ? await supabase.from('announcements').update(payload).eq('id', editingId)
+      : await supabase.from('announcements').insert({ ...payload, created_by: user.id });
+
+    setSaving(false);
+    if (res.error) {
+      setError(res.error.message);
+      return;
+    }
+
+    setEditingId(null);
     setTitle('');
     setMessage('');
+    loadData();
+  };
+
+  const handleDelete = async (id: string) => {
+    setError(null);
+    const { error: delErr } = await supabase.from('announcements').delete().eq('id', id);
+    if (delErr) {
+      setError(delErr.message);
+      return;
+    }
+    setItems((prev) => prev.filter((a) => a.id !== id));
   };
 
   return (
@@ -38,15 +121,24 @@ export const TeacherAnnouncementsPage: React.FC = () => {
         subtitle="Send class notices directly to parents of your assigned classes."
       />
 
+      {error && (
+        <div className="rounded border border-light-error bg-error-container px-4 py-3 font-body text-body-md text-on-error-container">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter-lg items-start">
         <form
           onSubmit={handlePublish}
           className="lg:col-span-6 bg-light-surface border border-light-outline-variant rounded-md p-gutter-lg shadow-sm flex flex-col gap-gutter-md"
         >
-          <h2 className="font-headline text-title-lg text-light-on-surface">New announcement</h2>
+          <h2 className="font-headline text-title-lg text-light-on-surface">
+            {editingId ? 'Edit announcement' : 'New announcement'}
+          </h2>
 
           <TextInput
             label="Title"
+            placeholder="e.g. Class 8-A: Math quiz"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
@@ -62,22 +154,25 @@ export const TeacherAnnouncementsPage: React.FC = () => {
 
           <SelectInput
             label="Audience (assigned classes)"
-            value={audience}
-            onChange={(e) => setAudience(e.target.value)}
+            value={audienceClassId}
+            onChange={(e) => setAudienceClassId(e.target.value)}
           >
-            <option>Class 8-A</option>
-            <option>Class 9-A</option>
-            <option>Class 9-B</option>
+            {classes.map((c) => (
+              <option key={c.id} value={c.id}>
+                Class {c.name}-{c.section}
+              </option>
+            ))}
           </SelectInput>
 
           <div className="flex items-center gap-gutter-md pt-gutter-sm">
-            <Button type="submit" variant="primary" icon="send">
-              Publish
+            <Button type="submit" variant="primary" icon="send" disabled={saving || !audienceClassId}>
+              {saving ? 'Saving...' : editingId ? 'Update' : 'Publish'}
             </Button>
             <Button
               type="button"
               variant="secondary"
               onClick={() => {
+                setEditingId(null);
                 setTitle('');
                 setMessage('');
               }}
@@ -90,41 +185,56 @@ export const TeacherAnnouncementsPage: React.FC = () => {
         <section className="lg:col-span-6 flex flex-col gap-gutter-md">
           <h2 className="font-headline text-title-lg text-light-on-surface">Published</h2>
           <div className="flex flex-col gap-gutter-sm">
-            {items.map((item) => (
-              <article
-                key={item.id}
-                className="bg-light-surface border border-light-outline-variant rounded-md p-gutter-md shadow-sm flex items-center justify-between gap-gutter-md"
-              >
-                <div className="flex flex-col gap-gutter-xs">
-                  <h3 className="font-body text-title-md text-light-on-surface">{item.title}</h3>
-                  <p className="font-body text-body-md text-light-on-surface-variant">
-                    {item.audience} | {item.date}
-                  </p>
-                </div>
-                {item.schoolWide ? (
-                  <span className="font-body text-label-sm text-light-on-surface-variant shrink-0">
-                    School-wide
-                  </span>
-                ) : (
-                  <div className="flex items-center gap-gutter-md shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setTitle(item.title)}
-                      className="font-body text-label-lg text-light-primary hover:underline"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setItems((prev) => prev.filter((a) => a.id !== item.id))}
-                      className="font-body text-label-lg text-light-error hover:underline"
-                    >
-                      Delete
-                    </button>
+            {loading ? (
+              <p className="font-body text-body-md text-light-on-surface-variant">
+                Loading announcements...
+              </p>
+            ) : items.length === 0 ? (
+              <p className="font-body text-body-md text-light-on-surface-variant">
+                No announcements yet.
+              </p>
+            ) : (
+              items.map((item) => (
+                <article
+                  key={item.id}
+                  className="bg-light-surface border border-light-outline-variant rounded-md p-gutter-md shadow-sm flex items-center justify-between gap-gutter-md"
+                >
+                  <div className="flex flex-col gap-gutter-xs">
+                    <h3 className="font-body text-title-md text-light-on-surface">{item.title}</h3>
+                    <p className="font-body text-body-md text-light-on-surface-variant">
+                      {item.audience} | {item.date}
+                    </p>
                   </div>
-                )}
-              </article>
-            ))}
+                  {item.schoolWide || !item.isOwn ? (
+                    <span className="font-body text-label-sm text-light-on-surface-variant shrink-0">
+                      {item.schoolWide ? 'School-wide' : 'Read only'}
+                    </span>
+                  ) : (
+                    <div className="flex items-center gap-gutter-md shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingId(item.id);
+                          setTitle(item.title);
+                          setMessage(item.body);
+                          if (item.classId) setAudienceClassId(item.classId);
+                        }}
+                        className="font-body text-label-lg text-light-primary hover:underline"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item.id)}
+                        className="font-body text-label-lg text-light-error hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </article>
+              ))
+            )}
           </div>
         </section>
       </div>

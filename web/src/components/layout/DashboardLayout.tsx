@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Badge, Icon } from '../ui';
+import { useAuth } from '../../context/AuthContext';
 
 export interface NavItem {
   to: string;
@@ -13,9 +14,27 @@ interface DashboardLayoutProps {
   navItems: NavItem[];
 }
 
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase() || 'PB';
+}
+
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ portal, navItems }) => {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { profile, signOut } = useAuth();
+  const navigate = useNavigate();
   const isAdmin = portal === 'admin';
+
+  const displayName = profile?.full_name || (isAdmin ? 'Admin' : 'Teacher');
+  const initials = getInitials(displayName);
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login', { replace: true });
+  };
 
   return (
     <div className="bg-light-background text-light-on-background font-body min-h-screen flex flex-col">
@@ -47,19 +66,20 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ portal, navIte
                   : 'bg-light-secondary-container text-light-on-secondary-container'
               }`}
             >
-              {isAdmin ? 'AD' : 'SA'}
+              {initials}
             </div>
             <span className="hidden sm:inline font-body text-label-md text-light-on-surface">
-              {isAdmin ? 'Admin' : 'Ms. Sara (Teacher)'}
+              {displayName} ({isAdmin ? 'Admin' : 'Teacher'})
             </span>
           </div>
-          <Link
-            to="/login"
+          <button
+            type="button"
+            onClick={handleLogout}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-light-outline-variant text-light-on-surface-variant hover:bg-light-surface-container-low font-body text-label-md transition-colors duration-state-change"
           >
             <Icon name="logout" className="text-title-md" />
             <span>Logout</span>
-          </Link>
+          </button>
         </div>
       </header>
 
